@@ -4,9 +4,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import '../theme.dart';
+import 'downloader.dart';
+import 'installer.dart';
 
 class UpdateInfo {
   final String latestVersion;
@@ -31,6 +34,27 @@ class UpdateInfo {
         minSupportedVersion: (json['min_supported_version'] as int?) ?? 1,
       );
 
+  /// 下载候选地址：多个 GitHub 加速镜像 + 直连
+  ///
+  /// 下载前会并发测速，自动挑当前网络下最快的一条。
+  /// 免费镜像对单连接限速很严，但多连接分片可以叠加带宽，
+  /// 所以真正的提速来自 [MultiSourceDownloader] 的分片并发。
+  List<String> get downloadCandidates {
+    const mirrors = [
+      'https://gh-proxy.com/',
+      'https://ghfast.top/',
+      'https://ghproxy.net/',
+      'https://gh.llkk.cc/',
+    ];
+    return [
+      for (final m in mirrors) '$m$downloadUrl',
+      downloadUrl, // 直连兜底
+    ];
+  }
+
+  /// 首选镜像（「用浏览器下载」兜底时使用）
+  String get mirrorUrl => 'https://gh-proxy.com/$downloadUrl';
+
   UpdateInfo copyWith({bool? forceUpdate}) => UpdateInfo(
         latestVersion: latestVersion,
         downloadUrl: downloadUrl,
@@ -38,10 +62,6 @@ class UpdateInfo {
         forceUpdate: forceUpdate ?? this.forceUpdate,
         minSupportedVersion: minSupportedVersion,
       );
-
-  /// 镜像下载地址：GitHub 直连不稳时可用
-  String get mirrorUrl => downloadUrl
-      .replaceFirst('https://github.com/', 'https://ghproxy.net/https://github.com/');
 }
 
 /// 一个更新源：域名 + 可选的内置 IP（DNS 挂了时直连 IP）
@@ -347,26 +367,150 @@ class UpdateService {
               child: const Text('稍后'),
             ),
           TextButton(
-            onPressed: () async {
-              // GitHub 原始链接（部分网络环境更快）
+            onPressed: () {
               Navigator.pop(context);
-              final uri = Uri.parse(info.downloadUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
+              _openBrowser(info.mirrorUrl);
             },
-            child: const Text('原链接'),
+            child: const Text('浏览器下载'),
           ),
           FilledButton(
-            onPressed: () async {
-              // 默认走镜像：国内 GitHub 直连经常失败
+            onPressed: () {
               Navigator.pop(context);
-              final uri = Uri.parse(info.mirrorUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
+              _downloadAndInstall(context, info);
             },
-            child: Text(info.forceUpdate ? '立即更新' : '去更新'),
+            child: Text(info.forceUpdate ? '立即更新' : '快速更新'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Future<void> _openBrowser(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
+  }
+
+  /// 应用内下载：多镜像测速 + 16 连接分片并发，下完直接调起安装器
+  static Future<void> _downloadAndInstall(
+      BuildContext context, UpdateInfo info) async {
+    final progress = ValueNotifier<DownloadProgress>(DownloadProgress.idle);
+    var cancelled = false;
+    var closed = false;
+
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DownloadDialog(
+        progress: progress,
+        onCancel: () => cancelled = true,
+      ),
+    ));
+
+    void closeDialog() {
+      if (closed) return;
+      closed = true;
+      if (navigator.canPop()) navigator.pop();
+    }
+
+    String? error;
+    File? apk;
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final target = '${dir.path}/memimo-${info.latestVersion}.apk';
+      apk = await MultiSourceDownloader.download(
+        urls: info.downloadCandidates,
+        savePath: target,
+        onProgress: (p) => progress.value = p,
+        isCancelled: () => cancelled,
+      );
+    } on DownloadCancelled {
+      // 用户主动取消，不提示
+    } catch (e) {
+      error = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      closeDialog();
+    }
+
+    progress.dispose();
+
+    if (!context.mounted) return;
+
+    if (cancelled) return;
+
+    if (error != null) {
+      _showDownloadFailed(context, info, error);
+      return;
+    }
+
+    if (apk == null) return;
+
+    try {
+      await ApkInstaller.install(apk.path);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showInstallFailed(context, apk.path, '$e');
+    }
+  }
+
+  static void _showDownloadFailed(
+      BuildContext context, UpdateInfo info, String error) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('下载失败'),
+        content: Text('$error\n\n可以改用浏览器下载。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _openBrowser(info.mirrorUrl);
+            },
+            child: const Text('用浏览器下载'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void _showInstallFailed(
+      BuildContext context, String apkPath, String error) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('需要允许安装'),
+        content: Text(
+          '$error\n\n'
+          '请在弹出的系统页面里打开「允许安装未知应用」，然后回来点「重试」。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('关闭'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              ApkInstaller.openInstallPermissionSettings();
+            },
+            child: const Text('去授权'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              ApkInstaller.install(apkPath).catchError((_) {});
+            },
+            child: const Text('重试'),
           ),
         ],
       ),
@@ -396,5 +540,92 @@ class UpdateService {
     if (context.mounted && info != null) {
       _showUpdateDialog(context, info);
     }
+  }
+}
+
+/// 下载进度弹窗
+class _DownloadDialog extends StatelessWidget {
+  final ValueNotifier<DownloadProgress> progress;
+  final VoidCallback onCancel;
+
+  const _DownloadDialog({required this.progress, required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('正在下载更新'),
+      content: ValueListenableBuilder<DownloadProgress>(
+        valueListenable: progress,
+        builder: (context, p, child) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: p.connecting ? null : p.fraction,
+                  minHeight: 8,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation(AppPalette.primary),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (p.connecting)
+                Text('正在测速，挑选最快的线路…',
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.grey.shade700))
+              else ...[
+                Row(
+                  children: [
+                    Text('${p.percent}%',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppPalette.primary,
+                        )),
+                    const Spacer(),
+                    Text(p.sizeText,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                        p.merging
+                            ? Icons.verified_outlined
+                            : Icons.speed,
+                        size: 13,
+                        color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Text(
+                        p.merging ? '正在合并校验…' : p.speedText,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade700)),
+                    if (!p.merging && p.etaText != null) ...[
+                      Text(' · ',
+                          style: TextStyle(color: Colors.grey.shade400)),
+                      Text(p.etaText!,
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              Text(
+                '同时使用 16 条连接分段下载，速度远快于浏览器单线程',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        TextButton(onPressed: onCancel, child: const Text('取消')),
+      ],
+    );
   }
 }
