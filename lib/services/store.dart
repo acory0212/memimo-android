@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/word.dart';
+import 'ebbinghaus.dart';
 import 'sm2.dart';
 
 class DailyStat {
@@ -56,6 +57,43 @@ class Store {
 
   /// 主题色索引（对应 AppPalette.presets）
   int themeIndex = 0;
+
+  /// 记忆算法：0 = 艾宾浩斯曲线（默认），1 = SM-2 自适应
+  int memoryMethod = 0;
+
+  static const int methodEbbinghaus = 0;
+  static const int methodSm2 = 1;
+
+  bool get useEbbinghaus => memoryMethod == methodEbbinghaus;
+
+  String get memoryMethodName => useEbbinghaus ? '艾宾浩斯曲线' : 'SM-2 自适应';
+
+  /// 切换记忆算法。切换时把老数据里没算过的阶段一次性固化，
+  /// 但不改动任何词的下次复习时间 —— 进度不会突然后退或爆量。
+  void setMemoryMethod(int m) {
+    memoryMethod = m == methodSm2 ? methodSm2 : methodEbbinghaus;
+    if (useEbbinghaus) _migrateStages();
+    saveMeta();
+  }
+
+  /// 把 SM-2 历史换算成艾宾浩斯阶段并写回（只处理 stage 未初始化的词）
+  void _migrateStages() {
+    var changed = false;
+    progress.forEach((id, p) {
+      if (p.stage < 0) {
+        progress[id] = p.copyWith(stage: Ebbinghaus.inferStage(p));
+        changed = true;
+      }
+    });
+    if (changed) saveProgress();
+  }
+
+  /// 某个词当前处在遗忘曲线的第几阶段
+  int stageOf(WordProgress p) => Ebbinghaus.stageOf(p);
+
+  /// 评分按钮上的「下次复习」提示，按当前算法算
+  String predictLabel(WordProgress p, int grade) =>
+      useEbbinghaus ? Ebbinghaus.predictLabel(p, grade) : Sm2.predictLabel(p, grade);
 
   Word? wordById(int id) => _byId[id];
   Word? wordByText(String w) => _byId[_byWord[w.toLowerCase()]];
@@ -151,6 +189,8 @@ class Store {
       randomNewWords = (j['randomOrder'] as bool?) ?? true;
       shuffleSeed = (j['shuffleSeed'] as num?)?.toInt() ?? 0;
       themeIndex = (j['theme'] as num?)?.toInt() ?? 0;
+      memoryMethod = (j['method'] as num?)?.toInt() ?? 0;
+      if (memoryMethod != methodSm2) memoryMethod = methodEbbinghaus;
     } catch (_) {}
   }
 
@@ -166,6 +206,7 @@ class Store {
         'randomOrder': randomNewWords,
         'shuffleSeed': shuffleSeed,
         'theme': themeIndex,
+        'method': memoryMethod,
       });
 
   void setThemeIndex(int i) {
@@ -256,7 +297,8 @@ class Store {
   void applyReview(Word w, int grade) {
     final p = progress[w.id] ?? WordProgress.initial(DateTime.now());
     final isNew = p.reviewCount == 0;
-    final r = Sm2.review(p, grade, DateTime.now());
+    final now = DateTime.now();
+    final r = useEbbinghaus ? Ebbinghaus.review(p, grade, now) : Sm2.review(p, grade, now);
     progress[w.id] = r.progress;
     final st = todayStat();
     if (isNew) {
@@ -292,8 +334,27 @@ class Store {
 
   int get totalLearned => progress.values.where((p) => p.reviewCount > 0).length;
 
+  /// 单个词是否算「已掌握」，口径随算法走：
+  /// - 艾宾浩斯：走到 30 天及以后的阶段
+  /// - SM-2：连续答对 3 次且间隔超过 21 天
+  bool isMastered(WordProgress p) {
+    if (p.reviewCount == 0) return false;
+    if (useEbbinghaus) return Ebbinghaus.stageOf(p) >= Ebbinghaus.masteredStage;
+    return p.repetitions >= 3 && p.interval >= 21;
+  }
+
   int get masteredCount =>
-      progress.values.where((p) => p.repetitions >= 3 && p.interval >= 21).length;
+      progress.values.where(isMastered).length;
+
+  /// 各阶段的词数分布，用于统计页展示遗忘曲线进度
+  List<int> get stageDistribution {
+    final out = List<int>.filled(Ebbinghaus.intervalMinutes.length, 0);
+    for (final p in progress.values) {
+      if (p.reviewCount == 0) continue;
+      out[Ebbinghaus.clampStage(Ebbinghaus.stageOf(p))]++;
+    }
+    return out;
+  }
 
   int get streak {
     var n = 0;
