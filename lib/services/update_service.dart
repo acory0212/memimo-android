@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+import '../theme.dart';
 
 class UpdateInfo {
   final String latestVersion;
@@ -311,7 +312,7 @@ class UpdateService {
       barrierDismissible: !info.forceUpdate,
       builder: (_) => AlertDialog(
         title: Row(children: [
-          const Icon(Icons.system_update, color: Color(0xFF4A7C59)),
+          Icon(Icons.system_update, color: AppPalette.primary),
           const SizedBox(width: 8),
           Text('发现新版本 v${info.latestVersion}'),
         ]),
