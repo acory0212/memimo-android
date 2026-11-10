@@ -6,6 +6,7 @@ import '../models/word.dart';
 import '../services/audio_player.dart';
 import '../services/sm2.dart';
 import '../services/store.dart';
+import '../theme.dart';
 
 /// 一次学习会话：先复习到期的，再学新词
 class LearnScreen extends StatefulWidget {
@@ -169,13 +170,13 @@ class _LearnScreenState extends State<LearnScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF4A7C59).withValues(alpha: 0.1),
+                            color: AppPalette.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.volume_up_outlined,
                             size: 22,
-                            color: Color(0xFF4A7C59),
+                            color: AppPalette.primary,
                           ),
                         ),
                       ),
@@ -277,10 +278,10 @@ class _MeaningBlock extends StatelessWidget {
                         if (t.pos != null && t.pos!.isNotEmpty)
                           TextSpan(
                             text: '${t.pos}. ',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontStyle: FontStyle.italic,
-                              color: Color(0xFF4A7C59),
+                              color: AppPalette.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -341,7 +342,7 @@ class _MeaningBlock extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.link, size: 15, color: Color(0xFF4A7C59)),
+                    Icon(Icons.link, size: 15, color: AppPalette.primary),
                     const SizedBox(width: 5),
                     Text('短语',
                         style: TextStyle(
@@ -360,9 +361,9 @@ class _MeaningBlock extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: p.p,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF2E4739)),
+                                color: AppPalette.primaryDark),
                           ),
                           if (p.cn != null && p.cn!.isNotEmpty)
                             TextSpan(
@@ -432,10 +433,10 @@ class _ExampleCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0xFFF3F7F4) : Colors.white,
+        color: highlight ? AppPalette.soft : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: highlight
-            ? Border.all(color: const Color(0xFF4A7C59).withValues(alpha: 0.2))
+            ? Border.all(color: AppPalette.primary.withValues(alpha: 0.2))
             : null,
       ),
       child: Column(
@@ -446,7 +447,7 @@ class _ExampleCard extends StatelessWidget {
               Icon(
                 highlight ? Icons.school_outlined : Icons.format_quote,
                 size: 15,
-                color: const Color(0xFF4A7C59),
+                color: AppPalette.primary,
               ),
               const SizedBox(width: 5),
               Text(title,
