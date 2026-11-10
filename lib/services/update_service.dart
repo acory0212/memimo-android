@@ -62,13 +62,14 @@ class NetworkReport {
 }
 
 class UpdateService {
-  /// 更新源：先 GitHub Releases API（含备用 IP），再 Netlify。
+  /// 更新源（已不使用 Netlify）：
+  /// 1) GitHub Releases API —— 信息最全，带备用 IP 兜底 DNS 故障
+  /// 2) jsDelivr CDN 读仓库里的 version.json —— 国内可直连，作为 API 被墙时的备胎
   static const List<_Source> _sources = [
     _Source(
       host: 'api.github.com',
       url: 'https://api.github.com/repos/acory0212/memimo-android/releases/latest',
       isGithub: true,
-      // DNS 解析失败时直连这些 IP（实测可用）
       pinnedIps: [
         '20.205.243.168',
         '20.205.243.166',
@@ -77,9 +78,14 @@ class UpdateService {
       ],
     ),
     _Source(
-      host: 'memimo-updates.netlify.app',
-      url: 'https://memimo-updates.netlify.app/version.json',
-      pinnedIps: ['13.215.239.219', '52.74.6.109'],
+      host: 'cdn.jsdelivr.net',
+      url: 'https://cdn.jsdelivr.net/gh/acory0212/memimo-android@main/version.json',
+      pinnedIps: [
+        '151.101.65.229',
+        '151.101.1.229',
+        '151.101.129.229',
+        '151.101.193.229',
+      ],
     ),
   ];
 
