@@ -147,6 +147,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           _Section(
+            title: '每日自我检查',
+            children: [
+              const SizedBox(height: 2),
+              _CheckModeRow(
+                label: '看单词选意思',
+                hint: '四选一，快',
+                selected: s.selfCheckMode == Store.checkChoice,
+                onTap: () {
+                  s.setSelfCheckMode(Store.checkChoice);
+                  setState(() {});
+                },
+              ),
+              _CheckModeRow(
+                label: '看意思写单词',
+                hint: '拼写，更硬核',
+                selected: s.selfCheckMode == Store.checkSpelling,
+                onTap: () {
+                  s.setSelfCheckMode(Store.checkSpelling);
+                  setState(() {});
+                },
+              ),
+              _CheckModeRow(
+                label: '两种混合',
+                hint: '推荐，全面检验',
+                selected: s.selfCheckMode == Store.checkMixed,
+                onTap: () {
+                  s.setSelfCheckMode(Store.checkMixed);
+                  setState(() {});
+                },
+              ),
+              const Divider(height: 20),
+              Text(
+                '每天从已学词汇里抽 20 题。答对不动记忆曲线，答错会让这个词退回一级并立刻回到复习队列。',
+                style: TextStyle(
+                    fontSize: 11.5, height: 1.5, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _Section(
             title: '学习计划',
             children: [
               _SliderTile(
@@ -302,7 +342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 leading: Icon(Icons.info_outline, color: AppPalette.primary),
                 title: const Text('当前算法', style: TextStyle(fontSize: 15)),
                 subtitle: Text(
-                    '${s.memoryMethodName} · 5 档评分自动安排复习时间',
+                    '${s.memoryMethodName} · 三档评分自动安排复习时间',
                     style: const TextStyle(fontSize: 12)),
               ),
               ListTile(
@@ -422,6 +462,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SnackBar(content: Text('学习进度已清空')),
       );
     }
+  }
+}
+
+class _CheckModeRow extends StatelessWidget {
+  final String label;
+  final String hint;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CheckModeRow({
+    required this.label,
+    required this.hint,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              size: 19,
+              color: selected ? AppPalette.primary : Colors.grey.shade400,
+            ),
+            const SizedBox(width: 9),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                color: selected ? AppPalette.primaryDark : Colors.black87,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(hint,
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500)),
+          ],
+        ),
+      ),
+    );
   }
 }
 
