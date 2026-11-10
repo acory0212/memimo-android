@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/store.dart';
 import '../services/update_service.dart';
+import '../theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,6 +22,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text('设置',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
           const SizedBox(height: 20),
+          _Section(
+            title: '主题色',
+            children: [
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 76,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: AppPalette.presets.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 14),
+                  itemBuilder: (_, i) {
+                    final preset = AppPalette.presets[i];
+                    final selected = i == s.themeIndex;
+                    return GestureDetector(
+                      onTap: () {
+                        s.setThemeIndex(i);
+                        AppPalette.apply(i);
+                        AppPalette.revision.value++;
+                        setState(() {});
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: preset.seed,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selected
+                                    ? Colors.grey.shade800
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: preset.seed.withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: selected
+                                ? const Icon(Icons.check,
+                                    size: 20, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            preset.name,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight:
+                                  selected ? FontWeight.w600 : FontWeight.normal,
+                              color: selected
+                                  ? Colors.grey.shade800
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           _Section(
             title: '学习计划',
             children: [
@@ -58,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     '伪随机打乱词库，避免每天从 abandon 一路背到 Z',
                     style: TextStyle(fontSize: 12)),
                 value: s.randomNewWords,
-                activeTrackColor: const Color(0xFF4A7C59),
+                activeTrackColor: AppPalette.primary,
                 onChanged: (v) {
                   setState(() => s.setRandomNewWords(v));
                 },
@@ -66,8 +136,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 enabled: s.randomNewWords,
-                leading: const Icon(Icons.casino_outlined,
-                    color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.casino_outlined,
+                    color: AppPalette.primary),
                 title: const Text('重新随机抽取今日新词',
                     style: TextStyle(fontSize: 14)),
                 subtitle: const Text('换一组词，今天还没学的会重新抽',
@@ -93,8 +163,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.library_books_outlined,
-                    color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.library_books_outlined,
+                    color: AppPalette.primary),
                 title: const Text('四级词汇（正序版）',
                     style: TextStyle(fontSize: 15)),
                 subtitle: Text('${s.allWords.length} 词 · 有道词书',
@@ -102,7 +172,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.sync, color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.sync, color: AppPalette.primary),
                 title: const Text('重置学习进度', style: TextStyle(fontSize: 15)),
                 subtitle: const Text('清空所有记忆记录，重新开始',
                     style: TextStyle(fontSize: 12)),
@@ -116,8 +186,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.system_update_outlined,
-                    color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.system_update_outlined,
+                    color: AppPalette.primary),
                 title: const Text('检查更新',
                     style: TextStyle(fontSize: 15)),
                 subtitle: Text(
@@ -132,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.network_check, color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.network_check, color: AppPalette.primary),
                 title: const Text('网络诊断', style: TextStyle(fontSize: 15)),
                 subtitle: const Text('检测 DNS 解析和直连是否正常',
                     style: TextStyle(fontSize: 12)),
@@ -146,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(
                           report.dnsOk ? Icons.check_circle : Icons.error,
                           color: report.dnsOk
-                              ? const Color(0xFF4A7C59)
+                              ? AppPalette.primary
                               : Colors.orange,
                         ),
                         const SizedBox(width: 8),
@@ -174,7 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.info_outline, color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.info_outline, color: AppPalette.primary),
                 title: const Text('记忆算法', style: TextStyle(fontSize: 15)),
                 subtitle: const Text(
                     'SM-2 间隔重复算法，5 档评分自动安排复习时间',
@@ -182,7 +252,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.storage_outlined, color: Color(0xFF4A7C59)),
+                leading: Icon(Icons.storage_outlined, color: AppPalette.primary),
                 title: const Text('数据存储', style: TextStyle(fontSize: 15)),
                 subtitle: const Text('全部数据保存在本机，不联网不上传',
                     style: TextStyle(fontSize: 12)),
@@ -292,10 +362,10 @@ class _SliderTile extends StatelessWidget {
             Text(label, style: const TextStyle(fontSize: 14)),
             const Spacer(),
             Text(display,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF4A7C59))),
+                    color: AppPalette.primary)),
           ],
         ),
         Slider(
