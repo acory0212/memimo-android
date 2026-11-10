@@ -34,17 +34,22 @@ D:\Minecraft\dev-tools\android-sdk\platform-tools\adb.exe install -r "D:\Minecra
 | v1.3 | 新增「随机抽取」：每日新词伪随机打乱抽取，首页可直接重抽 |
 | v1.3.1 | 更新检查增加诊断信息；修复网络失败误报「已是最新」 |
 
-## 更新功能（多源：GitHub + Netlify）
+## 更新功能（GitHub API + jsDelivr 双源）
 
-App 会依次尝试两个更新源，第一个成功的生效：
+App 依次尝试两个更新源，第一个成功的生效（已彻底移除 Netlify）：
 
-1. **GitHub Releases API**（优先，国内访问更稳定）
+1. **GitHub Releases API**（主源，带备用 IP 兜底 DNS 故障）
    `https://api.github.com/repos/acory0212/memimo-android/releases/latest`
-2. **Netlify**（备用）
-   `https://memimo-updates.netlify.app/version.json`
+2. **jsDelivr CDN**（备源，国内可直连，读取仓库里的 `version.json`）
+   `https://cdn.jsdelivr.net/gh/acory0212/memimo-android@main/version.json`
 
-设置页「检查更新」会显示诊断信息（当前版本 / 各源 HTTP 状态 / 线上版本），
-连不上时能直接看到是哪一步失败。
+设置页「检查更新」会显示诊断信息（当前版本、各源结果、线上版本），
+另有「网络诊断」可单独查看 DNS 解析和 IP 可达性。
+
+> **重要**：release 包必须在 `android/app/src/main/AndroidManifest.xml` 里显式声明
+> `<uses-permission android:name="android.permission.INTERNET"/>`。
+> Flutter 只在 debug/profile 包里自动加这个权限，正式包不加就会导致所有联网失败
+> （表现为 `Failed host lookup ... errno = 7`，连直连 IP 也失败）。
 
 ### 发布新版本流程
 
@@ -52,29 +57,30 @@ App 会依次尝试两个更新源，第一个成功的生效：
 # 环境
 $env:Path = "D:\Minecraft\dev-tools\gh\bin;D:\Minecraft\dev-tools\git\cmd;$env:Path"
 $env:GH_CONFIG_DIR = "D:\Minecraft\dev-tools\gh\config"
-$env:HTTPS_PROXY = "http://127.0.0.1:7897"
-$env:HTTP_PROXY = "http://127.0.0.1:7897"
+$env:HTTPS_PROXY = ""
+$env:HTTP_PROXY = ""
 
-# 1. 改版本号（两处都要改）
-#    pubspec.yaml:            version: 1.4.0+5
-#    android/local.properties: flutter.versionName=1.4.0 / flutter.versionCode=5
+# 1. 改版本号（三处）
+#    pubspec.yaml:              version: 1.5.0+7
+#    android/local.properties:  flutter.versionName=1.5.0 / flutter.versionCode=7
+#    version.json:              version / download_url / release_notes
 # 2. 构建
 cd D:\Minecraft\meme-app\android; .\gradlew.bat assembleRelease
 # 3. 发布到 GitHub Release
 cd D:\Minecraft\meme-app
-gh release create v1.4.0 "..\Minecraft\输出\四级背单词-v1.4.apk" --title "v1.4.0" --notes "更新说明"
-# 4. （可选）同步 Netlify 备用源：改 D:\Minecraft\更新站点\version.json 后 deploy
+gh release create v1.5.0 "D:\Minecraft\输出\四级背单词-v1.5.apk" --title "v1.5.0" --notes "更新说明"
+# 4. 提交 version.json（jsDelivr 备源从仓库读取，push 后约 10 分钟生效）
+git add version.json README.md
+git commit -m "chore: version.json 更新到 1.5.0"
+git push
 ```
 
-> GitHub Release 附件上传较慢（76MB 通过代理约需数分钟），可用 `gh api` 查询进度：
-> `gh api repos/acory0212/memimo-android/releases/latest --jq ".assets[] | {name, size}"`
-
-### Netlify 备用源部署（可选）
-
-`D:\Minecraft\更新站点\`（已 netlify link，直接 `netlify deploy --prod --dir .`）
-
-> 注意：新站点默认开启 SSO 保护，首次创建后必须关闭，否则外部拿到 401：
-> `netlify api updateSite --data '{"site_id":"<ID>","body":{"sso_login":false}}'`
+> 大文件上传别走代理，直连 uploads.github.com 最快：
+> ```
+> curl --noproxy "*" -X POST -H "Authorization: Bearer <token>" `
+>   -H "Content-Type: application/octet-stream" --data-binary @apk `
+>   "https://uploads.github.com/repos/acory0212/memimo-android/releases/<id>/assets?name=xxx.apk"
+> ```
 
 ## 功能
 
