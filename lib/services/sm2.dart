@@ -21,10 +21,13 @@ class WordProgress {
   /// 累计复习次数
   final int reviewCount;
 
-  /// 累计遗忘（答"忘记"）次数
+  /// 累计遗忘（答"不认识"）次数
   final int lapseCount;
 
-  /// 最近一次评价：0=忘记 1=模糊 2=一般 3=熟悉 4=秒杀
+  /// 最近一次评价：0=不认识 1=认识 2=熟悉（-1 表示还没评过）
+  ///
+  /// v1.7.x 及以前是 0..4 五档，v1.8.0 起统一为三档，
+  /// 老数据由 Store 在加载时自动迁移。
   final int lastGrade;
 
   /// 艾宾浩斯遗忘曲线的阶段。
@@ -104,41 +107,34 @@ class Sm2Result {
   Sm2Result(this.progress, this.now);
 }
 
-/// SM-2 间隔重复算法（改进版，参考墨墨/Anki 的 5 档评分）
+/// SM-2 间隔重复算法（三档评分）
 class Sm2 {
-  /// [grade] 0..4
-  /// 0=忘记 1=模糊 2=一般 3=熟悉 4=秒杀
+  /// [grade] 0=不认识 1=认识 2=熟悉
   static Sm2Result review(WordProgress p, int grade, DateTime now) {
     double ef = p.easeFactor;
     int reps = p.repetitions;
     double interval;
 
-    // 难度因子调整（SM-2 标准公式，映射到 0..5 量表）
-    // grade 0 -> q=0, 1->q=2, 2->q=3, 3->q=4, 4->q=5
+    // 映射到 SM-2 的 0..5 量表：
+    // 不认识 q=0（大幅降 EF）、认识 q=3、熟悉 q=5
     final int q = switch (grade) {
       0 => 0,
-      1 => 2,
-      2 => 3,
-      3 => 4,
+      1 => 3,
       _ => 5,
     };
     ef = ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
     if (ef < 1.3) ef = 1.3;
 
-    if (grade == 0) {
-      // 忘记：重置
+    if (grade <= 0) {
+      // 不认识：重置，10 分钟后再来
       reps = 0;
-      interval = 0; // 当天再来
-    } else if (grade == 1) {
-      // 模糊：短间隔重复，不推进
-      reps = 0;
-      interval = 0.04; // 约 1 小时后再出现（学习日内）
+      interval = 0;
     } else {
       reps += 1;
       if (reps == 1) {
-        interval = grade >= 3 ? 1.0 : 0.5;
+        interval = grade >= 2 ? 1.0 : 0.5;
       } else if (reps == 2) {
-        interval = grade >= 3 ? 3.0 : 2.0;
+        interval = grade >= 2 ? 3.0 : 2.0;
       } else {
         interval = p.interval <= 0 ? 1.0 : p.interval * ef;
         // 上限一年
