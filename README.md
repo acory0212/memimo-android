@@ -32,39 +32,46 @@ D:\Minecraft\dev-tools\android-sdk\platform-tools\adb.exe install -r "D:\Minecra
 | v1.1 | 新增单词发音（3739 词，SAPI 离线合成） |
 | v1.2 | 新增「检查更新」功能；音频压缩优化（300MB→75.8MB） |
 | v1.3 | 新增「随机抽取」：每日新词伪随机打乱抽取，首页可直接重抽 |
+| v1.3.1 | 更新检查增加诊断信息；修复网络失败误报「已是最新」 |
 
-## 更新功能（Netlify 托管）
+## 更新功能（多源：GitHub + Netlify）
 
-**线上地址（已上线）**
-- 版本清单：https://memimo-updates.netlify.app/version.json
-- APK 下载：https://memimo-updates.netlify.app/memimo-v1.2.apk
-- 管理后台：https://app.netlify.com/projects/memimo-updates
+App 会依次尝试两个更新源，第一个成功的生效：
 
-App 设置页有「检查更新」，启动时也会静默检查强制更新。
-`lib/services/update_service.dart` 的 `_updateJsonUrl` 已指向上述地址。
+1. **GitHub Releases API**（优先，国内访问更稳定）
+   `https://api.github.com/repos/acory0212/memimo-android/releases/latest`
+2. **Netlify**（备用）
+   `https://memimo-updates.netlify.app/version.json`
 
-### 部署目录
-
-`D:\Minecraft\更新站点\`（已被 Netlify 链接，直接 deploy 即可）
+设置页「检查更新」会显示诊断信息（当前版本 / 各源 HTTP 状态 / 线上版本），
+连不上时能直接看到是哪一步失败。
 
 ### 发布新版本流程
 
 ```powershell
 # 环境
-$env:Path = "$env:USERPROFILE\.bun\bin;$env:Path"
-$env:APPDATA = "C:\Users\Y2152\AppData\Roaming"
+$env:Path = "D:\Minecraft\dev-tools\gh\bin;D:\Minecraft\dev-tools\git\cmd;$env:Path"
+$env:GH_CONFIG_DIR = "D:\Minecraft\dev-tools\gh\config"
+$env:HTTPS_PROXY = "http://127.0.0.1:7897"
+$env:HTTP_PROXY = "http://127.0.0.1:7897"
 
 # 1. 改版本号（两处都要改）
-#    pubspec.yaml:            version: 1.3.0+3
-#    android/local.properties: flutter.versionName=1.3.0 / flutter.versionCode=3
+#    pubspec.yaml:            version: 1.4.0+5
+#    android/local.properties: flutter.versionName=1.4.0 / flutter.versionCode=5
 # 2. 构建
 cd D:\Minecraft\meme-app\android; .\gradlew.bat assembleRelease
-# 3. 复制到部署目录
-Copy-Item ..\build\app\outputs\flutter-apk\app-release.apk D:\Minecraft\更新站点\memimo-v1.3.apk
-# 4. 改 version.json（version / download_url / release_notes / force_update）
-# 5. 重新部署
-cd D:\Minecraft\更新站点; netlify deploy --prod --dir .
+# 3. 发布到 GitHub Release
+cd D:\Minecraft\meme-app
+gh release create v1.4.0 "..\Minecraft\输出\四级背单词-v1.4.apk" --title "v1.4.0" --notes "更新说明"
+# 4. （可选）同步 Netlify 备用源：改 D:\Minecraft\更新站点\version.json 后 deploy
 ```
+
+> GitHub Release 附件上传较慢（76MB 通过代理约需数分钟），可用 `gh api` 查询进度：
+> `gh api repos/acory0212/memimo-android/releases/latest --jq ".assets[] | {name, size}"`
+
+### Netlify 备用源部署（可选）
+
+`D:\Minecraft\更新站点\`（已 netlify link，直接 `netlify deploy --prod --dir .`）
 
 > 注意：新站点默认开启 SSO 保护，首次创建后必须关闭，否则外部拿到 401：
 > `netlify api updateSite --data '{"site_id":"<ID>","body":{"sso_login":false}}'`
