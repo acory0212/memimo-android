@@ -1,7 +1,7 @@
 {
-  "version": "1.5.0",
-  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.5.0/memimo-v1.5.0.apk",
-  "release_notes": "· 新增主题色切换：松绿/海蓝/墨紫/暖橙/玫红/石墨 六套配色\n· 切换后全 App 立即生效并记住选择\n· 学习卡片、词库、统计、按钮、背景全部跟随主题",
+  "version": "1.6.0",
+  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.6.0/memimo-v1.6.0.apk",
+  "release_notes": "· 新增「艾宾浩斯遗忘曲线」记忆法，并设为默认\n· 12 级固定复习时间表：10分钟 → 12小时 → 1天 → 2天 → 4天 → 7天 → 15天 → 30天 → 60天 → 120天 → 180天 → 1年\n· 答「熟悉」推进一级、「秒杀」跳一级、「一般」原地巩固、「模糊」退一级、「忘记」回到起点重走\n· 设置页可随时在艾宾浩斯 / SM-2 之间切换，两套进度各自保留不互相覆盖\n· 学习页显示当前处在第几级，单词详情页显示记忆阶段\n· 统计页新增「遗忘曲线进度」分布，一眼看出每个阶段的词汇量\n· 修复设置页版本号一直显示 v1.0.0 的问题",
   "force_update": false,
   "min_supported_version": 1
 }
