@@ -5,6 +5,7 @@ import 'learn_screen.dart';
 import 'stats_screen.dart';
 import 'settings_screen.dart';
 import 'wordbook_screen.dart';
+import '../theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -109,7 +110,7 @@ class _TodayTabState extends State<_TodayTab> {
             title: '今日学习',
             subtitle: '复习 ${due.length} 个 · 新词 ${news.length} 个',
             icon: Icons.play_circle_fill,
-            colors: const [Color(0xFF4A7C59), Color(0xFF6FA97D)],
+            colors: [AppPalette.primary, AppPalette.primaryLight],
             onTap: () async {
               if (due.isEmpty && news.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -253,7 +254,7 @@ class _RandomBar extends StatelessWidget {
           Icon(
             enabled ? Icons.shuffle : Icons.sort,
             size: 17,
-            color: const Color(0xFF4A7C59),
+            color: AppPalette.primary,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -267,7 +268,7 @@ class _RandomBar extends StatelessWidget {
           TextButton.icon(
             onPressed: enabled ? onDraw : null,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF4A7C59),
+              foregroundColor: AppPalette.primary,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               minimumSize: const Size(0, 34),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
