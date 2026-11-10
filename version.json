@@ -1,7 +1,7 @@
 {
-  "version": "1.7.0",
-  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.7.0/memimo-v1.7.0.apk",
-  "release_notes": "· 评分简化为三档：不认识 / 认识 / 熟悉，不再需要纠结五档怎么选\n· 单手操作优化：底部按钮加大加高，整张卡片点一下就能看释义，减少精确点按\n· 评分和翻卡加入触觉反馈\n· 新增「每日自我检查」：从已学词汇里抽 20 题四选一，检验真实记忆\n· 自检答错的词会退回记忆曲线一级，并立即回到复习队列\n· 首页显示今日自检成绩，可随时再测一次",
+  "version": "1.8.0",
+  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.8.0/memimo-v1.8.0.apk",
+  "release_notes": "· 修复：学习完成后点「好的」没有反应\n· 内部评价编码也统一为三档（0 不认识 / 1 认识 / 2 熟悉），老数据自动迁移\n· 自我检查新增两种题型：看单词选意思、看意思写单词，可在设置页自由组合\n· 混合模式下逐题随机切换题型，选择与拼写都会出现\n· 答错时会停下来显示正确答案，看清后手动点「继续」再进入下一题",
   "force_update": false,
   "min_supported_version": 1
 }
