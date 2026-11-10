@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+import '../services/ebbinghaus.dart';
 import '../services/store.dart';
 import '../services/update_service.dart';
 import '../theme.dart';
@@ -12,6 +14,17 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((p) {
+      if (!mounted) return;
+      setState(() => _version = 'v${p.version}');
+    }).catchError((_) {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = Store.I;
@@ -87,6 +100,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _Section(
+            title: '记忆算法',
+            children: [
+              const SizedBox(height: 2),
+              _MethodOption(
+                selected: s.useEbbinghaus,
+                title: '艾宾浩斯遗忘曲线',
+                badge: '推荐',
+                subtitle: '固定间隔表：10 分钟 → 12 小时 → 1 天 → 2 天 → '
+                    '4 天 → 7 天 → 15 天 → 30 天… 越熟间隔越长',
+                onTap: () {
+                  s.setMemoryMethod(Store.methodEbbinghaus);
+                  setState(() {});
+                },
+              ),
+              const SizedBox(height: 10),
+              _MethodOption(
+                selected: !s.useEbbinghaus,
+                title: 'SM-2 自适应',
+                subtitle: '按每个词自己的难度因子动态计算间隔，'
+                    '背得快的词间隔拉得更开',
+                onTap: () {
+                  s.setMemoryMethod(Store.methodSm2);
+                  setState(() {});
+                },
+              ),
+              const Divider(height: 24),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.timeline, color: AppPalette.primary),
+                title: const Text('复习时间表', style: TextStyle(fontSize: 14)),
+                subtitle: Text(
+                  '遗忘曲线共 ${Ebbinghaus.intervalMinutes.length} 个阶段，'
+                  '点开看每一级对应多久',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                onTap: () => _showCurveTable(context),
               ),
             ],
           ),
@@ -245,10 +300,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.info_outline, color: AppPalette.primary),
-                title: const Text('记忆算法', style: TextStyle(fontSize: 15)),
-                subtitle: const Text(
-                    'SM-2 间隔重复算法，5 档评分自动安排复习时间',
-                    style: TextStyle(fontSize: 12)),
+                title: const Text('当前算法', style: TextStyle(fontSize: 15)),
+                subtitle: Text(
+                    '${s.memoryMethodName} · 5 档评分自动安排复习时间',
+                    style: const TextStyle(fontSize: 12)),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -261,8 +316,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Text('四级背单词 v1.0.0',
+            child: Text(
+                _version.isEmpty ? '四级背单词' : '四级背单词 $_version',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCurveTable(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('艾宾浩斯复习时间表'),
+        contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: Ebbinghaus.intervalMinutes.length,
+            itemBuilder: (_, i) {
+              final last = i == Ebbinghaus.intervalMinutes.length - 1;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 13),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: last
+                            ? AppPalette.primary
+                            : AppPalette.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text('${i + 1}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: last ? Colors.white : AppPalette.primary,
+                          )),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(Ebbinghaus.stageLabels[i],
+                              style: const TextStyle(
+                                  fontSize: 13.5, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(Ebbinghaus.stageHints[i],
+                              style: TextStyle(
+                                  fontSize: 11.5, color: Colors.grey.shade600)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('知道了'),
           ),
         ],
       ),
@@ -300,6 +422,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SnackBar(content: Text('学习进度已清空')),
       );
     }
+  }
+}
+
+class _MethodOption extends StatelessWidget {
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final String? badge;
+  final VoidCallback onTap;
+
+  const _MethodOption({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? AppPalette.soft : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? AppPalette.primary.withValues(alpha: 0.55)
+                : Colors.grey.shade200,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                size: 20,
+                color: selected ? AppPalette.primary : Colors.grey.shade400,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(title,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: selected
+                                ? AppPalette.primaryDark
+                                : Colors.black87,
+                          )),
+                      if (badge != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppPalette.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(badge!,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppPalette.primary,
+                              )),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(subtitle,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.45,
+                        color: Colors.grey.shade600,
+                      )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
