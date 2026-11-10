@@ -40,6 +40,7 @@ D:\Minecraft\dev-tools\android-sdk\platform-tools\adb.exe install -r "D:\Minecra
 | v1.4.2 | 稳定性修复 |
 | v1.5.0 | 新增主题色切换：松绿/海蓝/墨紫/暖橙/玫红/石墨 六套配色 |
 | v1.6.0 | 新增艾宾浩斯遗忘曲线（默认），12 级固定复习时间表；设置页可切换算法；统计页加遗忘曲线分布 |
+| v1.6.1 | 更新下载提速：应用内 16 连接分片并发 + 多镜像测速，实测 0.02 MB/s → 2 MB/s；进度条与自动安装 |
 
 ## 记忆算法
 
@@ -87,6 +88,34 @@ D:\Minecraft\dev-tools\android-sdk\platform-tools\adb.exe install -r "D:\Minecra
 > 自动换算成等效阶段，且**不改动已有的到期时间**，不会突然冒出一堆待复习词。
 
 ## 更新功能（GitHub API + jsDelivr 双源）
+
+### 下载加速（v1.6.1+）
+
+旧版只是把下载链接丢给浏览器，走 `ghproxy.net` 单连接，实测仅 **20 KB/s**。
+v1.6.1 改为应用内下载：
+
+1. **多镜像测速** —— 并发探测 4 个加速镜像 + 直连，各下 128KB 计时，选最快的
+2. **16 连接分片并发** —— 文件切 16 段同时下，带宽叠加（实测提速 90 倍）
+3. **进度条 + 取消 + 分片重试**
+4. **下完直接调起系统安装器**（FileProvider → `content://`）
+
+| 方式 | 速度 | 下完 76MB |
+|---|---|---|
+| 浏览器 + ghproxy.net | 0.02 MB/s | 约 60 分钟 |
+| 单连接直连 | 0.34 MB/s | 约 4 分钟 |
+| 应用内 16 连接 | 1.97 MB/s | 约 38 秒 |
+
+> **实现坑**：Dart 的 `FileMode.writeOnly` 也是**截断**模式（没有「不截断的随机写」），
+> 多个连接直接写同一个文件的偏移会互相清空。所以每个分片先写自己的 `.part` 临时文件，
+> 全部下完再流式合并。
+>
+> **安装坑**：Android 7+ 不允许 `file://` 暴露给安装器，必须用 FileProvider 转成
+> `content://`，而且 `AndroidManifest.xml` 要声明 `REQUEST_INSTALL_PACKAGES`。
+> 验证：`aapt2 dump badging` 能看到该权限，`aapt2 dump xmltree` 能看到 provider。
+
+自检：`dart run tool/check_downloader.dart`（真实下载一次 APK 并校验大小 + ZIP 头尾）。
+
+### 更新源
 
 App 依次尝试两个更新源，第一个成功的生效（已彻底移除 Netlify）：
 
