@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/word.dart';
 import '../services/audio_player.dart';
+import '../services/ebbinghaus.dart';
+import '../services/sm2.dart';
 import '../services/store.dart';
 import '../theme.dart';
 
@@ -182,18 +184,19 @@ class _WordDetailScreenState extends State<WordDetailScreen> {
 }
 
 class _ProgressCard extends StatelessWidget {
-  final dynamic p;
+  final WordProgress p;
   const _ProgressCard({required this.p});
 
   @override
   Widget build(BuildContext context) {
-    final due = p.dueDate as DateTime;
+    final due = p.dueDate;
     final days = due.difference(DateTime.now()).inDays;
     final dueText = days < 0
         ? '已到期'
         : days == 0
             ? '今天'
             : '$days 天后';
+    final eb = Store.I.useEbbinghaus;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -209,6 +212,10 @@ class _ProgressCard extends StatelessWidget {
               const SizedBox(width: 6),
               const Text('学习记录',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text(Store.I.memoryMethodName,
+                  style: TextStyle(
+                      fontSize: 11, color: Colors.grey.shade600)),
             ],
           ),
           const SizedBox(height: 10),
@@ -218,10 +225,15 @@ class _ProgressCard extends StatelessWidget {
             children: [
               _kv('复习次数', '${p.reviewCount}'),
               _kv('遗忘次数', '${p.lapseCount}'),
-              _kv('记忆强度', '${(p.easeFactor as double).toStringAsFixed(2)}'),
-              _kv('当前间隔', p.interval < 1
-                  ? '${((p.interval as double) * 24).round()} 小时'
-                  : '${(p.interval as double).round()} 天'),
+              if (eb) ...[
+                _kv('记忆阶段', '第 ${Ebbinghaus.stageOf(p) + 1} 级'),
+                _kv('本级间隔', Ebbinghaus.labelOf(p)),
+              ] else ...[
+                _kv('记忆强度', p.easeFactor.toStringAsFixed(2)),
+                _kv('当前间隔', p.interval < 1
+                    ? '${(p.interval * 24).round()} 小时'
+                    : '${p.interval.round()} 天'),
+              ],
               _kv('下次复习', dueText),
             ],
           ),
