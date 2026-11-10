@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/word.dart';
+import '../services/sm2.dart';
 import '../services/store.dart';
 import 'word_detail_screen.dart';
 import '../theme.dart';
@@ -174,7 +175,7 @@ class _WordbookScreenState extends State<WordbookScreen> {
                                   _statusText(p),
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: p.repetitions >= 3
+                                    color: Store.I.isMastered(p)
                                         ? const Color(0xFF2E7D32)
                                         : Colors.grey.shade600,
                                   ),
@@ -189,8 +190,8 @@ class _WordbookScreenState extends State<WordbookScreen> {
     );
   }
 
-  String _statusText(dynamic p) {
-    if (p.interval >= 21) return '已掌握';
+  String _statusText(WordProgress p) {
+    if (Store.I.isMastered(p)) return '已掌握';
     if (p.reviewCount == 0) return '未学';
     final days = p.dueDate.difference(DateTime.now()).inDays;
     if (days < 0) return '待复习';
