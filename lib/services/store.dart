@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 
+import '../models/self_check.dart';
 import '../models/word.dart';
 import 'ebbinghaus.dart';
 import 'sm2.dart';
@@ -15,16 +16,37 @@ class DailyStat {
   int reviews;
   int studySeconds;
 
-  DailyStat({required this.date, this.newWords = 0, this.reviews = 0, this.studySeconds = 0});
+  /// 每日自我检查：做了多少题、答对多少
+  int checkTotal;
+  int checkCorrect;
 
-  Map<String, dynamic> toJson() =>
-      {'d': date, 'n': newWords, 'r': reviews, 's': studySeconds};
+  DailyStat({
+    required this.date,
+    this.newWords = 0,
+    this.reviews = 0,
+    this.studySeconds = 0,
+    this.checkTotal = 0,
+    this.checkCorrect = 0,
+  });
+
+  bool get checkDone => checkTotal > 0;
+
+  Map<String, dynamic> toJson() => {
+        'd': date,
+        'n': newWords,
+        'r': reviews,
+        's': studySeconds,
+        'ct': checkTotal,
+        'cc': checkCorrect,
+      };
 
   factory DailyStat.fromJson(Map<String, dynamic> j) => DailyStat(
         date: j['d'] as String,
         newWords: (j['n'] as num?)?.toInt() ?? 0,
         reviews: (j['r'] as num?)?.toInt() ?? 0,
         studySeconds: (j['s'] as num?)?.toInt() ?? 0,
+        checkTotal: (j['ct'] as num?)?.toInt() ?? 0,
+        checkCorrect: (j['cc'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -319,6 +341,106 @@ class Store {
     todayStat().studySeconds += sec;
     saveStats();
   }
+
+  // ---------- 每日自我检查 ----------
+
+  /// 取一个词最核心的中文释义（第一个非空的翻译）
+  String _primaryMeaning(Word w) {
+    for (final t in w.translations) {
+      final cn = t.cn.trim();
+      if (cn.isNotEmpty) return cn;
+    }
+    return '';
+  }
+
+  /// 从「已学过」的词里抽题，每个词给 4 个中文释义选项
+  ///
+  /// 干扰项优先取同词性的词，否则一眼就能靠词性排除，测不出真实记忆。
+  List<SelfCheckQuestion> buildSelfCheckQuestions({int count = 20}) {
+    final learned = <Word>[];
+    progress.forEach((id, p) {
+      if (p.reviewCount > 0) {
+        final w = _byId[id];
+        if (w != null) learned.add(w);
+      }
+    });
+    if (learned.length < 4) return const [];
+
+    final pool = [...learned]..shuffle(Random());
+    final picked = pool.take(count).toList();
+    final questions = <SelfCheckQuestion>[];
+
+    for (final w in picked) {
+      final correct = _primaryMeaning(w);
+      if (correct.isEmpty) continue;
+
+      final pos = w.translations.isNotEmpty ? w.translations.first.pos : null;
+      final options = <String>{correct};
+
+      // 第一轮：同词性干扰项
+      if (pos != null && pos.isNotEmpty) {
+        for (final o in pool) {
+          if (options.length >= 4) break;
+          if (o.id == w.id || o.translations.isEmpty) continue;
+          if (o.translations.first.pos != pos) continue;
+          final m = _primaryMeaning(o);
+          if (m.isNotEmpty) options.add(m);
+        }
+      }
+      // 第二轮：任意干扰项补齐
+      for (final o in pool) {
+        if (options.length >= 4) break;
+        if (o.id == w.id) continue;
+        final m = _primaryMeaning(o);
+        if (m.isNotEmpty) options.add(m);
+      }
+      if (options.length < 4) continue;
+
+      questions.add(SelfCheckQuestion(
+        word: w,
+        options: options.toList()..shuffle(Random()),
+        answer: correct,
+      ));
+    }
+    return questions;
+  }
+
+  /// 记录一次自检结果
+  void recordSelfCheck(int total, int correct) {
+    final st = todayStat();
+    st.checkTotal += total;
+    st.checkCorrect += correct;
+    saveStats();
+  }
+
+  /// 自检答错：记忆强度退一级，并让它立刻回到复习队列
+  ///
+  /// 只惩罚答错、不奖励答对 —— 自检是「检验」，不该打乱正常曲线；
+  /// 但答错说明确实没记住，把它拉回来是合理的。
+  void applySelfCheckMiss(Word w) {
+    final p = progress[w.id];
+    if (p == null) return;
+    final now = DateTime.now();
+    if (useEbbinghaus) {
+      progress[w.id] = p.copyWith(
+        stage: Ebbinghaus.clampStage(Ebbinghaus.stageOf(p) - 1),
+        dueDate: now,
+      );
+    } else {
+      final ef = (p.easeFactor - 0.2).clamp(1.3, 2.5).toDouble();
+      progress[w.id] = p.copyWith(
+        easeFactor: ef,
+        repetitions: p.repetitions > 0 ? p.repetitions - 1 : 0,
+        dueDate: now,
+      );
+    }
+    saveProgress();
+  }
+
+  /// 今日自检情况
+  int get todayCheckTotal => todayStat().checkTotal;
+  int get todayCheckCorrect => todayStat().checkCorrect;
+  bool get todayCheckDone => todayStat().checkDone;
 
   void toggleFavorite(int id) {
     if (!favorites.remove(id)) favorites.add(id);
