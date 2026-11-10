@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/store.dart';
 import 'learn_screen.dart';
+import 'self_check_screen.dart';
 import 'stats_screen.dart';
 import 'settings_screen.dart';
 import 'wordbook_screen.dart';
@@ -162,6 +163,29 @@ class _TodayTabState extends State<_TodayTab> {
             },
           ),
 
+          const SizedBox(height: 10),
+          _SelfCheckBar(
+            done: today.checkDone,
+            total: today.checkTotal,
+            correct: today.checkCorrect,
+            onTap: () async {
+              if (total < 4) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('至少学 4 个词才能开始检查'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                return;
+              }
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SelfCheckScreen()),
+              );
+              if (mounted) setState(() {});
+            },
+          ),
+
           const SizedBox(height: 16),
           Row(
             children: [
@@ -277,6 +301,86 @@ class _RandomBar extends StatelessWidget {
             label: const Text('随机抽取', style: TextStyle(fontSize: 13)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SelfCheckBar extends StatelessWidget {
+  final bool done;
+  final int total;
+  final int correct;
+  final VoidCallback onTap;
+
+  const _SelfCheckBar({
+    required this.done,
+    required this.total,
+    required this.correct,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total == 0 ? 0 : (correct / total * 100).round();
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 11, 6, 11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppPalette.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(Icons.fact_check_outlined,
+                  size: 19, color: AppPalette.primary),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    done ? '今日已检查' : '每日自我检查',
+                    style: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    done
+                        ? '$correct/$total 正确（$pct%）· 可再测一次'
+                        : '从已学词汇里抽 20 题，检验真实记忆',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: onTap,
+              style: TextButton.styleFrom(
+                foregroundColor: AppPalette.primary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(done ? '再测' : '开始',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
       ),
     );
   }
