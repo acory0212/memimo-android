@@ -1,7 +1,7 @@
 {
-  "version": "1.4.2",
-  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.4.2/memimo-v1.4.2.apk",
-  "release_notes": "· 修复正式包缺少 INTERNET 权限导致完全无法联网（关键）\n· 更新检查改为 GitHub API + jsDelivr 双源，彻底移除 Netlify\n· 更新弹窗默认走镜像下载，国内可正常更新\n· 保留 IP 直连兜底与网络诊断",
+  "version": "1.5.0",
+  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.5.0/memimo-v1.5.0.apk",
+  "release_notes": "· 新增主题色切换：松绿/海蓝/墨紫/暖橙/玫红/石墨 六套配色\n· 切换后全 App 立即生效并记住选择\n· 学习卡片、词库、统计、按钮、背景全部跟随主题",
   "force_update": false,
   "min_supported_version": 1
 }
