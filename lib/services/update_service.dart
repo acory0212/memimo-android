@@ -37,6 +37,10 @@ class UpdateInfo {
         forceUpdate: forceUpdate ?? this.forceUpdate,
         minSupportedVersion: minSupportedVersion,
       );
+
+  /// 镜像下载地址：GitHub 直连不稳时可用
+  String get mirrorUrl => downloadUrl
+      .replaceFirst('https://github.com/', 'https://ghproxy.net/https://github.com/');
 }
 
 /// 一个更新源：域名 + 可选的内置 IP（DNS 挂了时直连 IP）
@@ -341,6 +345,18 @@ class UpdateService {
               onPressed: () => Navigator.pop(context),
               child: const Text('稍后'),
             ),
+          TextButton(
+            onPressed: () async {
+              // 镜像下载：国内 GitHub 直连不稳时的备选
+              final mirror = info.mirrorUrl;
+              Navigator.pop(context);
+              final uri = Uri.parse(mirror);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: const Text('镜像下载'),
+          ),
           FilledButton(
             onPressed: () async {
               Navigator.pop(context);
