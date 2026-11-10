@@ -130,6 +130,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (mounted) setState(() {});
                 },
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.network_check, color: Color(0xFF4A7C59)),
+                title: const Text('网络诊断', style: TextStyle(fontSize: 15)),
+                subtitle: const Text('检测 DNS 解析和直连是否正常',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  final report = await UpdateService.diagnose();
+                  if (!context.mounted) return;
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Row(children: [
+                        Icon(
+                          report.dnsOk ? Icons.check_circle : Icons.error,
+                          color: report.dnsOk
+                              ? const Color(0xFF4A7C59)
+                              : Colors.orange,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('网络诊断'),
+                      ]),
+                      content: SingleChildScrollView(
+                        child: Text(report.detail,
+                            style: const TextStyle(fontSize: 12.5, height: 1.6)),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('知道了'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
           const SizedBox(height: 16),
