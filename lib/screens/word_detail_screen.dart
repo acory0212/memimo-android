@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/word.dart';
 import '../services/audio_player.dart';
 import '../services/store.dart';
+import '../theme.dart';
 
 class WordDetailScreen extends StatefulWidget {
   final Word word;
@@ -72,10 +73,10 @@ class _WordDetailScreenState extends State<WordDetailScreen> {
                           if ((t.pos ?? '').isNotEmpty)
                             TextSpan(
                               text: '${t.pos}. ',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontStyle: FontStyle.italic,
-                                color: Color(0xFF4A7C59),
+                                color: AppPalette.primary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -196,7 +197,7 @@ class _ProgressCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F7F4),
+        color: AppPalette.soft,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -204,7 +205,7 @@ class _ProgressCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.insights, size: 16, color: Color(0xFF4A7C59)),
+              Icon(Icons.insights, size: 16, color: AppPalette.primary),
               const SizedBox(width: 6),
               const Text('学习记录',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -261,7 +262,7 @@ class _Box extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 15, color: const Color(0xFF4A7C59)),
+              Icon(icon, size: 15, color: AppPalette.primary),
               const SizedBox(width: 5),
               Text(title,
                   style: TextStyle(
