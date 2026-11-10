@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/word.dart';
 import '../services/audio_player.dart';
+import '../services/ebbinghaus.dart';
 import '../services/sm2.dart';
 import '../services/store.dart';
 import '../theme.dart';
@@ -141,7 +142,10 @@ class _LearnScreenState extends State<LearnScreen> {
                         const _Chip(text: '复习', color: Color(0xFF7B1FA2)),
                         const SizedBox(width: 6),
                         _Chip(
-                          text: '第 ${p.reviewCount + 1} 次',
+                          text: Store.I.useEbbinghaus
+                              ? '阶段 ${Store.I.stageOf(p) + 1}/'
+                                  '${Ebbinghaus.intervalMinutes.length}'
+                              : '第 ${p.reviewCount + 1} 次',
                           color: Colors.grey.shade600,
                         ),
                       ],
@@ -580,35 +584,35 @@ class _ActionBar extends StatelessWidget {
                     children: [
                       _GradeButton(
                         label: '忘记',
-                        hint: Sm2.predictLabel(progress, 0),
+                        hint: Store.I.predictLabel(progress, 0),
                         color: const Color(0xFFD84315),
                         onTap: () => onGrade(0),
                       ),
                       const SizedBox(width: 8),
                       _GradeButton(
                         label: '模糊',
-                        hint: Sm2.predictLabel(progress, 1),
+                        hint: Store.I.predictLabel(progress, 1),
                         color: const Color(0xFFEF6C00),
                         onTap: () => onGrade(1),
                       ),
                       const SizedBox(width: 8),
                       _GradeButton(
                         label: '一般',
-                        hint: Sm2.predictLabel(progress, 2),
+                        hint: Store.I.predictLabel(progress, 2),
                         color: const Color(0xFF7CB342),
                         onTap: () => onGrade(2),
                       ),
                       const SizedBox(width: 8),
                       _GradeButton(
                         label: '熟悉',
-                        hint: Sm2.predictLabel(progress, 3),
+                        hint: Store.I.predictLabel(progress, 3),
                         color: const Color(0xFF2E7D32),
                         onTap: () => onGrade(3),
                       ),
                       const SizedBox(width: 8),
                       _GradeButton(
                         label: '秒杀',
-                        hint: Sm2.predictLabel(progress, 4),
+                        hint: Store.I.predictLabel(progress, 4),
                         color: const Color(0xFF1565C0),
                         onTap: () => onGrade(4),
                       ),
@@ -616,7 +620,7 @@ class _ActionBar extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '按记忆程度选择，算法自动安排下次复习',
+                    '${Store.I.memoryMethodName} · 按记忆程度选择，自动安排下次复习',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
                 ],
