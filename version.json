@@ -1,0 +1,7 @@
+{
+  "version": "1.4.0",
+  "download_url": "https://github.com/acory0212/memimo-android/releases/download/v1.4.0/memimo-v1.4.0.apk",
+  "release_notes": "· 修复 release 包缺失 INTERNET 权限导致所有联网失败\n· 更新检查改用 GitHub API + jsDelivr 双源，彻底移除 Netlify\n· 保留 IP 直连兜底，DNS 异常时仍可检查更新",
+  "force_update": false,
+  "min_supported_version": 1
+}
