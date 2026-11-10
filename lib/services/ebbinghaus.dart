@@ -109,23 +109,24 @@ class Ebbinghaus {
 
   /// 评价后应该进入哪个阶段
   ///
-  /// 0 忘记 → 回到起点，整条曲线重走
-  /// 1 模糊 → 退一级，下次来得更早
-  /// 2 一般 → 原地不动，同一间隔再巩固一次
-  /// 3 熟悉 → 前进一级
-  /// 4 秒杀 → 前进两级，很熟的词不用陪跑
+  /// 界面上的三档评分对应：
+  /// - 0 不认识 → 回到起点，整条曲线重走
+  /// - 2 认识   → 前进一级（想起来了，正常推进）
+  /// - 4 熟悉   → 前进两级（秒答，很牢的词不用陪跑）
+  ///
+  /// 1（模糊）和 3（旧版“熟悉”）保留在内部，
+  /// 用于兼容历史数据，界面不再产生。
   static int nextStage(WordProgress p, int grade) {
     final cur = stageOf(p);
 
     if (grade == 0) return 0;
     if (grade == 1) return clampStage(cur - 1);
 
-    // 新词第一次评价：不论选「一般」还是「秒杀」，
-    // 都统一进入 12 小时阶段 —— 给当天留一次回看机会，别一上来就放两天
+    // 新词第一次评价：不论选哪档，都先进入 12 小时阶段 ——
+    // 给当天留一次回看机会，别一上来就放到两天后
     if (p.reviewCount == 0) return 1;
 
-    if (grade == 2) return cur;
-    if (grade == 3) return clampStage(cur + 1);
+    if (grade <= 3) return clampStage(cur + 1);
     return clampStage(cur + 2);
   }
 
