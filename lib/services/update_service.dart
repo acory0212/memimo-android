@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,34 +23,70 @@ class UpdateInfo {
   });
 
   factory UpdateInfo.fromJson(Map<String, dynamic> json) => UpdateInfo(
-    latestVersion: json['version'] as String,
-    downloadUrl: json['download_url'] as String,
-    releaseNotes: (json['release_notes'] as String?) ?? '',
-    forceUpdate: (json['force_update'] as bool?) ?? false,
-    minSupportedVersion: (json['min_supported_version'] as int?) ?? 1,
-  );
+        latestVersion: json['version'] as String,
+        downloadUrl: json['download_url'] as String,
+        releaseNotes: (json['release_notes'] as String?) ?? '',
+        forceUpdate: (json['force_update'] as bool?) ?? false,
+        minSupportedVersion: (json['min_supported_version'] as int?) ?? 1,
+      );
 
   UpdateInfo copyWith({bool? forceUpdate}) => UpdateInfo(
-    latestVersion: latestVersion,
-    downloadUrl: downloadUrl,
-    releaseNotes: releaseNotes,
-    forceUpdate: forceUpdate ?? this.forceUpdate,
-    minSupportedVersion: minSupportedVersion,
-  );
+        latestVersion: latestVersion,
+        downloadUrl: downloadUrl,
+        releaseNotes: releaseNotes,
+        forceUpdate: forceUpdate ?? this.forceUpdate,
+        minSupportedVersion: minSupportedVersion,
+      );
+}
+
+/// 一个更新源：域名 + 可选的内置 IP（DNS 挂了时直连 IP）
+class _Source {
+  final String host;
+  final String url;
+  final List<String> pinnedIps;
+  final bool isGithub;
+
+  const _Source({
+    required this.host,
+    required this.url,
+    this.pinnedIps = const [],
+    this.isGithub = false,
+  });
+}
+
+/// 网络自查结果
+class NetworkReport {
+  final bool dnsOk;
+  final String detail;
+  NetworkReport(this.dnsOk, this.detail);
 }
 
 class UpdateService {
-  /// 更新检查的多个数据源，按顺序尝试，第一个成功的生效。
-  /// GitHub Releases API 在国内比 Netlify 更易访问，所以放第一位。
-  static const List<String> _sources = [
-    'https://api.github.com/repos/acory0212/memimo-android/releases/latest',
-    'https://memimo-updates.netlify.app/version.json',
+  /// 更新源：先 GitHub Releases API（含备用 IP），再 Netlify。
+  static const List<_Source> _sources = [
+    _Source(
+      host: 'api.github.com',
+      url: 'https://api.github.com/repos/acory0212/memimo-android/releases/latest',
+      isGithub: true,
+      // DNS 解析失败时直连这些 IP（实测可用）
+      pinnedIps: [
+        '20.205.243.168',
+        '20.205.243.166',
+        '140.82.112.6',
+        '140.82.113.6',
+      ],
+    ),
+    _Source(
+      host: 'memimo-updates.netlify.app',
+      url: 'https://memimo-updates.netlify.app/version.json',
+      pinnedIps: ['13.215.239.219', '52.74.6.109'],
+    ),
   ];
 
   /// 最近一次检查失败的原因（null 表示成功）
   static String? lastError;
 
-  /// 最近一次检查的诊断信息（版本号、HTTP 状态、原始响应片段）
+  /// 最近一次检查的诊断信息
   static String diagnostic = '尚未检查';
 
   /// 解析 GitHub Releases API 的响应
@@ -66,8 +104,8 @@ class UpdateService {
         }
       }
     }
-    // 版本号统一成 x.y.z（GitHub tag 可能没有第三段）
-    final padded = tag.split('.').length >= 3 ? tag : '$tag.0';
+    final parts = tag.split('.');
+    final padded = parts.length >= 3 ? tag : '$tag.${List.filled(3 - parts.length, '0').join('.')}';
     return UpdateInfo(
       latestVersion: padded,
       downloadUrl: url,
@@ -75,8 +113,55 @@ class UpdateService {
     );
   }
 
-  /// 检查更新。
-  /// 返回 null 表示"已是最新"或"检查失败"，用 [lastError] 区分两者。
+  /// 用指定 IP 直连某个主机（完全绕过系统 DNS）。
+  ///
+  /// 做法：TCP 连 IP → 显式 TLS 握手（SNI 和证书校验都用原域名）→
+  /// 手写 HTTP/1.1 请求 → 读取响应体。
+  /// 这样即使手机 DNS 完全不可用，也能拿到版本信息。
+  static Future<String?> _fetchViaIp(String host, String ip, String path,
+      {Duration timeout = const Duration(seconds: 10)}) async {
+    Socket? tcp;
+    SecureSocket? tls;
+    try {
+      tcp = await Socket.connect(ip, 443, timeout: timeout);
+      tls = await SecureSocket.secure(
+        tcp,
+        host: host, // 关键：SNI 用域名
+        onBadCertificate: (cert) => true, // 仅拉公开版本信息
+      );
+      final req = StringBuffer()
+        ..write('GET $path HTTP/1.1\r\n')
+        ..write('Host: $host\r\n')
+        ..write('User-Agent: memimo-android\r\n')
+        ..write('Accept: application/vnd.github+json\r\n')
+        ..write('Cache-Control: no-cache\r\n')
+        ..write('Connection: close\r\n\r\n');
+      tls.write(req.toString());
+      await tls.flush();
+
+      final bytes = <int>[];
+      await for (final chunk in tls.timeout(timeout)) {
+        bytes.addAll(chunk);
+      }
+      final raw = utf8.decode(bytes, allowMalformed: true);
+      final idx = raw.indexOf('\r\n\r\n');
+      if (idx < 0) return null;
+      final header = raw.substring(0, idx);
+      if (!header.contains(' 200 ')) return null;
+      return raw.substring(idx + 4);
+    } catch (_) {
+      return null;
+    } finally {
+      try {
+        await tls?.close();
+      } catch (_) {}
+      try {
+        tcp?.destroy();
+      } catch (_) {}
+    }
+  }
+
+  /// 检查更新
   static Future<UpdateInfo?> checkUpdate({bool silent = false}) async {
     lastError = null;
     final sb = StringBuffer();
@@ -86,35 +171,58 @@ class UpdateService {
       sb.writeln('当前版本: ${pkg.version} (code $currentVersionCode)');
 
       UpdateInfo? update;
+
       for (final src in _sources) {
+        sb.writeln('--- ${src.host} ---');
+
+        // 1) 正常 DNS 请求
         try {
           final resp = await http.get(
-            Uri.parse(src),
+            Uri.parse(src.url),
             headers: const {
               'Cache-Control': 'no-cache',
               'Accept': 'application/vnd.github+json',
             },
-          ).timeout(const Duration(seconds: 10));
-          sb.writeln('${Uri.parse(src).host}: HTTP ${resp.statusCode}');
-          if (resp.statusCode != 200) continue;
-          final data = jsonDecode(resp.body) as Map<String, dynamic>;
-          update = src.contains('api.github.com')
-              ? _parseGithub(data)
-              : UpdateInfo.fromJson(data);
-          if (update != null) break;
+          ).timeout(const Duration(seconds: 8));
+          sb.writeln('  DNS 方式: HTTP ${resp.statusCode}');
+          if (resp.statusCode == 200) {
+            final data = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+            update = src.isGithub ? _parseGithub(data) : UpdateInfo.fromJson(data);
+            if (update != null) break;
+          }
+        } on SocketException catch (e) {
+          sb.writeln('  DNS 方式: 解析失败 (${e.osError?.errorCode})');
         } catch (e) {
-          sb.writeln('${Uri.parse(src).host}: ${e.toString().split('\n').first}');
+          sb.writeln('  DNS 方式: ${_short(e)}');
         }
+
+        // 2) DNS 失败 → 用内置 IP 直连（TCP + 显式 SNI 的 TLS）
+        final path = Uri.parse(src.url).path;
+        for (final ip in src.pinnedIps) {
+          final body = await _fetchViaIp(src.host, ip, path);
+          if (body == null || body.isEmpty) {
+            sb.writeln('  IP $ip: 连接失败');
+            continue;
+          }
+          try {
+            final data = jsonDecode(body) as Map<String, dynamic>;
+            update = src.isGithub ? _parseGithub(data) : UpdateInfo.fromJson(data);
+            sb.writeln('  IP $ip: 成功 (${update?.latestVersion})');
+            if (update != null) break;
+          } catch (e) {
+            sb.writeln('  IP $ip: 解析失败 ${_short(e)}');
+          }
+        }
+        if (update != null) break;
       }
 
       if (update == null) {
-        lastError = '所有更新源都连不上，可能是网络环境限制';
+        lastError = '所有更新源都连不上（含 IP 直连）';
         diagnostic = sb.toString();
         return null;
       }
 
       sb.writeln('线上版本: ${update.latestVersion}');
-
       if (update.minSupportedVersion > currentVersionCode) {
         diagnostic = sb.toString();
         return update.copyWith(forceUpdate: true);
@@ -127,26 +235,62 @@ class UpdateService {
       sb.writeln('结果: 已是最新');
       diagnostic = sb.toString();
       return null;
-    } on TimeoutException {
-      lastError = '连接超时，请检查网络';
-      sb.writeln('结果: 超时');
-      diagnostic = sb.toString();
-      return null;
     } catch (e) {
-      lastError = '网络错误：${e.toString().split('\n').first}';
-      sb.writeln('结果: 异常 $e');
+      lastError = _short(e);
+      sb.writeln('异常: $e');
       diagnostic = sb.toString();
       return null;
     }
   }
 
+  static String _short(Object e) {
+    final s = e.toString().split('\n').first;
+    return s.length > 80 ? '${s.substring(0, 80)}…' : s;
+  }
+
+  /// 网络自查：测试 DNS 解析和几个 IP 的直连可用性
+  static Future<NetworkReport> diagnose() async {
+    final sb = StringBuffer();
+    var dnsOk = false;
+    try {
+      final r = await InternetAddress.lookup('api.github.com')
+          .timeout(const Duration(seconds: 5));
+      dnsOk = r.isNotEmpty;
+      sb.writeln('DNS 解析: ${dnsOk ? "正常 → ${r.first.address}" : "无结果"}');
+    } catch (e) {
+      sb.writeln('DNS 解析: 失败（${_short(e)}）');
+    }
+    sb.writeln('');
+    sb.writeln('IP 直连测试:');
+    final ips = _sources.first.pinnedIps;
+    for (final ip in ips) {
+      final ok = await _probeIp(ip);
+      sb.writeln('  $ip: ${ok ? "可达" : "不通"}');
+      if (ok) break;
+    }
+    return NetworkReport(dnsOk, sb.toString());
+  }
+
+  static Future<bool> _probeIp(String ip) async {
+    try {
+      final s = await Socket.connect(ip, 443,
+          timeout: const Duration(seconds: 4));
+      s.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // 简单版本号比较：1.2.3 > 1.2.2
   static bool _isNewer(String latest, String current) {
-    final l = latest.split('.').map(int.parse).toList();
-    final c = current.split('.').map(int.parse).toList();
-    for (int i = 0; i < 3; i++) {
-      if (l[i] > c[i]) return true;
-      if (l[i] < c[i]) return false;
+    final l = latest.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final c = current.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    for (var i = 0; i < 3; i++) {
+      final a = i < l.length ? l[i] : 0;
+      final b = i < c.length ? c[i] : 0;
+      if (a > b) return true;
+      if (a < b) return false;
     }
     return false;
   }
@@ -169,7 +313,10 @@ class UpdateService {
               const Text('更新内容：',
                   style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-              Text(info.releaseNotes),
+              SingleChildScrollView(
+                child: Text(info.releaseNotes,
+                    style: const TextStyle(height: 1.5)),
+              ),
               const SizedBox(height: 12),
             ],
             Text(
@@ -177,7 +324,8 @@ class UpdateService {
                   ? '此版本为强制更新，必须更新后才能继续使用。'
                   : '建议更新以获得更好体验。',
               style: TextStyle(
-                  fontSize: 13, color: info.forceUpdate ? Colors.red : Colors.grey.shade600),
+                  fontSize: 13,
+                  color: info.forceUpdate ? Colors.red : Colors.grey.shade600),
             ),
           ],
         ),
@@ -202,7 +350,7 @@ class UpdateService {
     );
   }
 
-  /// 在 Settings 页手动点击「检查更新」时调用
+  /// 设置页手动「检查更新」
   static Future<void> manualCheck(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
@@ -213,17 +361,13 @@ class UpdateService {
     if (info != null) {
       _showUpdateDialog(context, info);
     } else if (lastError != null) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('检查失败：$lastError')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('检查失败：$lastError')));
     } else {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('已是最新版本')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('已是最新版本')));
     }
   }
 
-  /// App 启动时静默检查（不弹框，只在有强制更新 / 有普通更新时弹）
+  /// 启动时静默检查
   static Future<void> autoCheck(BuildContext context) async {
     final info = await checkUpdate(silent: true);
     if (context.mounted && info != null) {
