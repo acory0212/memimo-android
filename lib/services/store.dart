@@ -54,6 +54,9 @@ class Store {
   /// 这样同一天内多次进入 App 抽到的词保持一致。
   int shuffleSeed = 0;
 
+  /// 主题色索引（对应 AppPalette.presets）
+  int themeIndex = 0;
+
   Word? wordById(int id) => _byId[id];
   Word? wordByText(String w) => _byId[_byWord[w.toLowerCase()]];
 
@@ -147,6 +150,7 @@ class Store {
       dailyGoalHours = (j['goal'] as num?)?.toDouble() ?? 1.0;
       randomNewWords = (j['randomOrder'] as bool?) ?? true;
       shuffleSeed = (j['shuffleSeed'] as num?)?.toInt() ?? 0;
+      themeIndex = (j['theme'] as num?)?.toInt() ?? 0;
     } catch (_) {}
   }
 
@@ -161,7 +165,13 @@ class Store {
         'goal': dailyGoalHours,
         'randomOrder': randomNewWords,
         'shuffleSeed': shuffleSeed,
+        'theme': themeIndex,
       });
+
+  void setThemeIndex(int i) {
+    themeIndex = i;
+    saveMeta();
+  }
 
   static String todayKey([DateTime? d]) {
     final n = d ?? DateTime.now();
