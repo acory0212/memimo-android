@@ -38,14 +38,42 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  static const String _updateJsonUrl =
-      'https://memimo-updates.netlify.app/version.json';
+  /// 更新检查的多个数据源，按顺序尝试，第一个成功的生效。
+  /// GitHub Releases API 在国内比 Netlify 更易访问，所以放第一位。
+  static const List<String> _sources = [
+    'https://api.github.com/repos/acory0212/memimo-android/releases/latest',
+    'https://memimo-updates.netlify.app/version.json',
+  ];
 
   /// 最近一次检查失败的原因（null 表示成功）
   static String? lastError;
 
   /// 最近一次检查的诊断信息（版本号、HTTP 状态、原始响应片段）
   static String diagnostic = '尚未检查';
+
+  /// 解析 GitHub Releases API 的响应
+  static UpdateInfo? _parseGithub(Map<String, dynamic> j) {
+    final tag = (j['tag_name'] as String?)?.replaceFirst('v', '');
+    if (tag == null || tag.isEmpty) return null;
+    final assets = j['assets'];
+    String url = (j['html_url'] as String?) ?? '';
+    if (assets is List) {
+      for (final a in assets) {
+        if (a is Map<String, dynamic> &&
+            (a['name'] as String? ?? '').toLowerCase().endsWith('.apk')) {
+          url = (a['browser_download_url'] as String?) ?? url;
+          break;
+        }
+      }
+    }
+    // 版本号统一成 x.y.z（GitHub tag 可能没有第三段）
+    final padded = tag.split('.').length >= 3 ? tag : '$tag.0';
+    return UpdateInfo(
+      latestVersion: padded,
+      downloadUrl: url,
+      releaseNotes: (j['body'] as String?) ?? '',
+    );
+  }
 
   /// 检查更新。
   /// 返回 null 表示"已是最新"或"检查失败"，用 [lastError] 区分两者。
@@ -57,22 +85,34 @@ class UpdateService {
       final currentVersionCode = int.tryParse(pkg.buildNumber) ?? 1;
       sb.writeln('当前版本: ${pkg.version} (code $currentVersionCode)');
 
-      final resp = await http
-          .get(
-            Uri.parse(_updateJsonUrl),
-            headers: {'Cache-Control': 'no-cache'},
-          )
-          .timeout(const Duration(seconds: 12));
+      UpdateInfo? update;
+      for (final src in _sources) {
+        try {
+          final resp = await http.get(
+            Uri.parse(src),
+            headers: const {
+              'Cache-Control': 'no-cache',
+              'Accept': 'application/vnd.github+json',
+            },
+          ).timeout(const Duration(seconds: 10));
+          sb.writeln('${Uri.parse(src).host}: HTTP ${resp.statusCode}');
+          if (resp.statusCode != 200) continue;
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          update = src.contains('api.github.com')
+              ? _parseGithub(data)
+              : UpdateInfo.fromJson(data);
+          if (update != null) break;
+        } catch (e) {
+          sb.writeln('${Uri.parse(src).host}: ${e.toString().split('\n').first}');
+        }
+      }
 
-      sb.writeln('HTTP 状态: ${resp.statusCode}');
-      if (resp.statusCode != 200) {
-        lastError = '服务器返回 ${resp.statusCode}';
+      if (update == null) {
+        lastError = '所有更新源都连不上，可能是网络环境限制';
         diagnostic = sb.toString();
         return null;
       }
 
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final update = UpdateInfo.fromJson(data);
       sb.writeln('线上版本: ${update.latestVersion}');
 
       if (update.minSupportedVersion > currentVersionCode) {
