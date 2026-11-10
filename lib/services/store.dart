@@ -83,6 +83,16 @@ class Store {
   /// 记忆算法：0 = 艾宾浩斯曲线（默认），1 = SM-2 自适应
   int memoryMethod = 0;
 
+  /// 自检题型：0 = 仅选择题，1 = 仅拼写题，2 = 混合（默认）
+  int selfCheckMode = 2;
+
+  static const int checkChoice = 0;
+  static const int checkSpelling = 1;
+  static const int checkMixed = 2;
+
+  /// 评价编码版本。3 = 三档（v1.8.0+）；0/缺失 = 老的五档，需要迁移
+  int _gradeScale = 0;
+
   static const int methodEbbinghaus = 0;
   static const int methodSm2 = 1;
 
@@ -131,6 +141,12 @@ class Store {
     _loadProgress();
     _loadStats();
     _loadMeta();
+    // 老版本的五档评价码 → 三档（v1.8.0 起内部也统一为三档）
+    if (_gradeScale < 3) {
+      _migrateGradeScale();
+      _gradeScale = 3;
+      saveMeta();
+    }
     ready = true;
   }
 
@@ -213,8 +229,37 @@ class Store {
       themeIndex = (j['theme'] as num?)?.toInt() ?? 0;
       memoryMethod = (j['method'] as num?)?.toInt() ?? 0;
       if (memoryMethod != methodSm2) memoryMethod = methodEbbinghaus;
+      final cm = (j['checkMode'] as num?)?.toInt() ?? checkMixed;
+      selfCheckMode = (cm >= 0 && cm <= 2) ? cm : checkMixed;
+      _gradeScale = (j['gradeScale'] as num?)?.toInt() ?? 0;
     } catch (_) {}
   }
+
+  /// 把老的五档评价码（0..4）迁移成三档（0..2）
+  void _migrateGradeScale() {
+    var changed = false;
+    for (final id in progress.keys.toList()) {
+      final p = progress[id]!;
+      if (p.lastGrade < 0) continue;
+      final g = p.lastGrade >= 3 ? 2 : (p.lastGrade >= 1 ? 1 : 0);
+      if (g != p.lastGrade) {
+        progress[id] = p.copyWith(lastGrade: g);
+        changed = true;
+      }
+    }
+    if (changed) saveProgress();
+  }
+
+  void setSelfCheckMode(int mode) {
+    selfCheckMode = (mode >= 0 && mode <= 2) ? mode : checkMixed;
+    saveMeta();
+  }
+
+  String get selfCheckModeName => switch (selfCheckMode) {
+        checkChoice => '看单词选意思',
+        checkSpelling => '看意思写单词',
+        _ => '两种混合',
+      };
 
   void saveProgress() => _write('progress.json',
       progress.map((k, v) => MapEntry(k.toString(), v.toJson())));
@@ -229,6 +274,8 @@ class Store {
         'shuffleSeed': shuffleSeed,
         'theme': themeIndex,
         'method': memoryMethod,
+        'checkMode': selfCheckMode,
+        'gradeScale': _gradeScale,
       });
 
   void setThemeIndex(int i) {
@@ -353,9 +400,26 @@ class Store {
     return '';
   }
 
-  /// 从「已学过」的词里抽题，每个词给 4 个中文释义选项
+  /// 按当前题型设置挑一种题型
+  SelfCheckType _pickType(Random rnd) {
+    switch (selfCheckMode) {
+      case checkChoice:
+        return SelfCheckType.choice;
+      case checkSpelling:
+        return SelfCheckType.spelling;
+      default:
+        // 混合：逐题随机，两种都会出现
+        return rnd.nextBool()
+            ? SelfCheckType.spelling
+            : SelfCheckType.choice;
+    }
+  }
+
+  /// 从「已学过」的词里抽题
   ///
-  /// 干扰项优先取同词性的词，否则一眼就能靠词性排除，测不出真实记忆。
+  /// 选择题：给 4 个中文释义，干扰项优先取同词性的词，
+  /// 否则一眼就能靠词性排除，测不出真实记忆。
+  /// 拼写题：给中文意思，要求写出英文单词。
   List<SelfCheckQuestion> buildSelfCheckQuestions({int count = 20}) {
     final learned = <Word>[];
     progress.forEach((id, p) {
@@ -366,16 +430,31 @@ class Store {
     });
     if (learned.length < 4) return const [];
 
-    final pool = [...learned]..shuffle(Random());
+    final rnd = Random();
+    final pool = [...learned]..shuffle(rnd);
     final picked = pool.take(count).toList();
     final questions = <SelfCheckQuestion>[];
 
     for (final w in picked) {
-      final correct = _primaryMeaning(w);
-      if (correct.isEmpty) continue;
+      final meaning = _primaryMeaning(w);
+      if (meaning.isEmpty) continue;
 
+      final type = _pickType(rnd);
+
+      // ---- 拼写题：不需要干扰项 ----
+      if (type == SelfCheckType.spelling) {
+        questions.add(SelfCheckQuestion(
+          word: w,
+          type: SelfCheckType.spelling,
+          prompt: meaning,
+          answer: w.word,
+        ));
+        continue;
+      }
+
+      // ---- 选择题：凑 4 个选项 ----
       final pos = w.translations.isNotEmpty ? w.translations.first.pos : null;
-      final options = <String>{correct};
+      final options = <String>{meaning};
 
       // 第一轮：同词性干扰项
       if (pos != null && pos.isNotEmpty) {
@@ -394,12 +473,23 @@ class Store {
         final m = _primaryMeaning(o);
         if (m.isNotEmpty) options.add(m);
       }
-      if (options.length < 4) continue;
+      if (options.length < 4) {
+        // 凑不齐就退化成拼写题，别浪费这个词
+        questions.add(SelfCheckQuestion(
+          word: w,
+          type: SelfCheckType.spelling,
+          prompt: meaning,
+          answer: w.word,
+        ));
+        continue;
+      }
 
       questions.add(SelfCheckQuestion(
         word: w,
-        options: options.toList()..shuffle(Random()),
-        answer: correct,
+        type: SelfCheckType.choice,
+        prompt: w.word,
+        answer: meaning,
+        options: options.toList()..shuffle(rnd),
       ));
     }
     return questions;
