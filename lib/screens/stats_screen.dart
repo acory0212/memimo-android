@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/store.dart';
+import '../theme.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -30,7 +31,7 @@ class StatsScreen extends StatelessWidget {
                       value: '${s.totalLearned}',
                       label: '累计已学',
                       unit: '词',
-                      color: const Color(0xFF4A7C59))),
+                      color: AppPalette.primary)),
               const SizedBox(width: 12),
               Expanded(
                   child: _BigStat(
@@ -103,8 +104,8 @@ class StatsScreen extends StatelessWidget {
                                       3,
                                   decoration: BoxDecoration(
                                     color: i == recent.length - 1
-                                        ? const Color(0xFF4A7C59)
-                                        : const Color(0xFF4A7C59)
+                                        ? AppPalette.primary
+                                        : AppPalette.primary
                                             .withValues(alpha: 0.35),
                                     borderRadius: BorderRadius.circular(3),
                                   ),
@@ -190,14 +191,14 @@ class _XpTip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F7F4),
+        color: AppPalette.soft,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.tips_and_updates_outlined,
-              size: 18, color: Color(0xFF4A7C59)),
+          Icon(Icons.tips_and_updates_outlined,
+              size: 18, color: AppPalette.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
