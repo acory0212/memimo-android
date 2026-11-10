@@ -308,11 +308,11 @@ class _XpTip extends StatelessWidget {
           Expanded(
             child: Text(
               Store.I.useEbbinghaus
-                  ? '艾宾浩斯曲线：答「熟悉」推进一级、「秒杀」跳一级、'
-                      '「一般」原地巩固、「模糊」退一级、「忘记」回到起点重走。\n'
+                  ? '艾宾浩斯曲线：答「认识」推进一级、「熟悉」跳一级、'
+                      '「不认识」回到起点重走。\n'
                       '走到 30 天以上（第 8 级）算「已掌握」。'
                   : 'SM-2 自适应：连续 3 次答对且间隔 ≥ 21 天算「已掌握」。\n'
-                      '选择「忘记」的单词会重新进入队列，并在错题本中累计。',
+                      '选择「不认识」的单词会重新进入队列，并在错题本中累计。',
               style: TextStyle(
                   fontSize: 12.5, height: 1.65, color: Colors.grey.shade700),
             ),
