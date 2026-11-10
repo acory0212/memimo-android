@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/ebbinghaus.dart';
 import '../services/store.dart';
 import '../theme.dart';
 
@@ -131,6 +132,8 @@ class StatsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          const _CurveCard(),
+          const SizedBox(height: 16),
           const _XpTip(),
         ],
       ),
@@ -183,6 +186,108 @@ class _BigStat extends StatelessWidget {
   }
 }
 
+class _CurveCard extends StatelessWidget {
+  const _CurveCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Store.I;
+    if (!s.useEbbinghaus) return const SizedBox.shrink();
+
+    final dist = s.stageDistribution;
+    final total = dist.fold<int>(0, (a, b) => a + b);
+    if (total == 0) return const SizedBox.shrink();
+
+    // 只展示到最后一个有词的阶段，最少展示前 3 级，避免一堆空条
+    var last = 2;
+    for (var i = 0; i < dist.length; i++) {
+      if (dist[i] > 0) last = i;
+    }
+    final maxV = dist.fold<int>(1, (a, b) => a > b ? a : b);
+    final mastered = s.masteredCount;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.timeline, size: 15, color: AppPalette.primary),
+              const SizedBox(width: 6),
+              const Text('遗忘曲线进度',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text('$total 词',
+                  style:
+                      TextStyle(fontSize: 11.5, color: Colors.grey.shade500)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '已进入长期记忆（30 天及以后）$mastered 词',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i <= last; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 52,
+                    child: Text(
+                      Ebbinghaus.stageLabels[i],
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: i >= Ebbinghaus.masteredStage
+                            ? AppPalette.primaryDark
+                            : Colors.grey.shade600,
+                        fontWeight: i >= Ebbinghaus.masteredStage
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: dist[i] / maxV,
+                        minHeight: 8,
+                        backgroundColor: Colors.grey.shade100,
+                        valueColor: AlwaysStoppedAnimation(
+                          i >= Ebbinghaus.masteredStage
+                              ? AppPalette.primary
+                              : AppPalette.primary.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      dist[i] == 0 ? '' : '${dist[i]}',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.shade600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _XpTip extends StatelessWidget {
   const _XpTip();
 
@@ -202,8 +307,12 @@ class _XpTip extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '记忆强度 ≥ 3 次复习且间隔 ≥ 21 天时算「已掌握」。\n'
-              '选择「忘记」的单词会重新进入队列，并在错题本中累计。',
+              Store.I.useEbbinghaus
+                  ? '艾宾浩斯曲线：答「熟悉」推进一级、「秒杀」跳一级、'
+                      '「一般」原地巩固、「模糊」退一级、「忘记」回到起点重走。\n'
+                      '走到 30 天以上（第 8 级）算「已掌握」。'
+                  : 'SM-2 自适应：连续 3 次答对且间隔 ≥ 21 天算「已掌握」。\n'
+                      '选择「忘记」的单词会重新进入队列，并在错题本中累计。',
               style: TextStyle(
                   fontSize: 12.5, height: 1.65, color: Colors.grey.shade700),
             ),
