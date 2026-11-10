@@ -30,6 +30,10 @@ void main() {
   r = Ebbinghaus.review(p, 4, t0).progress; // 秒杀（新词也只到 1）
   check('新词秒杀后阶段', r.stage, 1);
 
+  r = Ebbinghaus.review(p, 2, t0).progress; // 认识
+  check('新词认识后阶段', r.stage, 1);
+  check('新词认识后间隔(小时)', r.dueDate.difference(t0).inHours, 12);
+
   r = Ebbinghaus.review(p, 1, t0).progress; // 模糊
   check('新词模糊后阶段', r.stage, 0);
   check('新词模糊后间隔(分钟)', r.dueDate.difference(t0).inMinutes, 10);
@@ -53,7 +57,7 @@ void main() {
 
   check('阶段4+熟悉', Ebbinghaus.review(at(4), 3, t0).progress.stage, 5);
   check('阶段4+秒杀', Ebbinghaus.review(at(4), 4, t0).progress.stage, 6);
-  check('阶段4+一般(原地)', Ebbinghaus.review(at(4), 2, t0).progress.stage, 4);
+  check('阶段4+认识(推进)', Ebbinghaus.review(at(4), 2, t0).progress.stage, 5);
   check('阶段4+模糊', Ebbinghaus.review(at(4), 1, t0).progress.stage, 3);
   check('阶段4+忘记', Ebbinghaus.review(at(4), 0, t0).progress.stage, 0);
 
