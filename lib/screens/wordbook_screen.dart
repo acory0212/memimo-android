@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/word.dart';
 import '../services/store.dart';
 import 'word_detail_screen.dart';
+import '../theme.dart';
 
 class WordbookScreen extends StatefulWidget {
   const WordbookScreen({super.key});
@@ -216,7 +217,7 @@ class _FilterChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF4A7C59) : Colors.white,
+            color: selected ? AppPalette.primary : Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
