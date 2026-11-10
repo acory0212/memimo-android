@@ -63,7 +63,7 @@ class _LearnScreenState extends State<LearnScreen> {
     Store.I.applyReview(_current, g);
     if (g == 0) {
       _wrong++;
-      // 忘记的卡片重新排到队尾
+      // 不认识的卡片重新排到队尾
       final w = _queue.removeAt(_idx);
       _queue.add(w);
       if (_idx >= _queue.length) _idx = _queue.length - 1;
@@ -85,26 +85,38 @@ class _LearnScreenState extends State<LearnScreen> {
     });
   }
 
-  void _finish() {
+  /// 学习完成
+  ///
+  /// 顺序很重要：先弹结算框，用户点「好的」关掉后再退出本页。
+  /// 之前是先 pop 本页再弹框，用的是已经失效的 context，
+  /// 导致「好的」点了没反应。
+  Future<void> _finish() async {
     final secs = DateTime.now().difference(_startedAt).inSeconds;
-    Navigator.pop(context, true);
-    showDialog(
+    final count = _queue.length;
+    final correct = _correct;
+    final wrong = _wrong;
+
+    await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
         title: const Text('学习完成 🎉'),
         content: Text(
-          '本次学习 ${_queue.length} 个词\n'
+          '本次学习 $count 个词\n'
           '用时 ${(secs / 60).ceil()} 分钟\n'
-          '认识 $_correct 次 · 忘记 $_wrong 次',
+          '认识 $correct 次 · 不认识 $wrong 次',
         ),
         actions: [
           FilledButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('好的'),
           ),
         ],
       ),
     );
+
+    if (!mounted) return;
+    Navigator.pop(context, true);
   }
 
   @override
@@ -602,16 +614,16 @@ class _ActionBar extends StatelessWidget {
                       const SizedBox(width: 10),
                       _GradeButton(
                         label: '认识',
-                        hint: Store.I.predictLabel(progress, 2),
+                        hint: Store.I.predictLabel(progress, 1),
                         color: const Color(0xFF7CB342),
-                        onTap: () => onGrade(2),
+                        onTap: () => onGrade(1),
                       ),
                       const SizedBox(width: 10),
                       _GradeButton(
                         label: '熟悉',
-                        hint: Store.I.predictLabel(progress, 4),
+                        hint: Store.I.predictLabel(progress, 2),
                         color: const Color(0xFF2E7D32),
-                        onTap: () => onGrade(4),
+                        onTap: () => onGrade(2),
                       ),
                     ],
                   ),
