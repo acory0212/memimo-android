@@ -1,15 +1,21 @@
-/// 单个单词的记忆状态（SM-2 算法的数据载体）
+/// 单个单词的记忆状态
+///
+/// 同时承载两套算法的数据：
+/// - SM-2：easeFactor / repetitions / interval
+/// - 艾宾浩斯：stage（阶段）+ dueDate
+///
+/// 两套算法互不覆盖对方字段，用户随时切换都不会丢进度。
 class WordProgress {
-  /// 再次出现间隔（天）
+  /// 再次出现间隔（天）—— SM-2 使用
   final double interval;
 
   /// 简单难度因子（SM-2 的 EF，最小 1.3）
   final double easeFactor;
 
-  /// 连续答对次数
+  /// 连续答对次数 —— SM-2 使用
   final int repetitions;
 
-  /// 下次复习时间
+  /// 下次复习时间（两套算法共用）
   final DateTime dueDate;
 
   /// 累计复习次数
@@ -21,6 +27,10 @@ class WordProgress {
   /// 最近一次评价：0=忘记 1=模糊 2=一般 3=熟悉 4=秒杀
   final int lastGrade;
 
+  /// 艾宾浩斯遗忘曲线的阶段。
+  /// -1 表示老数据还没算过，需要从 SM-2 的历史里推断。
+  final int stage;
+
   const WordProgress({
     required this.interval,
     required this.easeFactor,
@@ -29,6 +39,7 @@ class WordProgress {
     required this.reviewCount,
     required this.lapseCount,
     required this.lastGrade,
+    this.stage = -1,
   });
 
   factory WordProgress.initial(DateTime now) => WordProgress(
@@ -39,6 +50,7 @@ class WordProgress {
         reviewCount: 0,
         lapseCount: 0,
         lastGrade: -1,
+        stage: -1,
       );
 
   factory WordProgress.fromJson(Map<String, dynamic> j) => WordProgress(
@@ -49,6 +61,7 @@ class WordProgress {
         reviewCount: (j['rc'] as num).toInt(),
         lapseCount: (j['lc'] as num?)?.toInt() ?? 0,
         lastGrade: (j['g'] as num?)?.toInt() ?? -1,
+        stage: (j['st'] as num?)?.toInt() ?? -1,
       );
 
   Map<String, dynamic> toJson() => {
@@ -59,6 +72,7 @@ class WordProgress {
         'rc': reviewCount,
         'lc': lapseCount,
         'g': lastGrade,
+        'st': stage,
       };
 
   WordProgress copyWith({
@@ -69,6 +83,7 @@ class WordProgress {
     int? reviewCount,
     int? lapseCount,
     int? lastGrade,
+    int? stage,
   }) =>
       WordProgress(
         interval: interval ?? this.interval,
@@ -78,6 +93,7 @@ class WordProgress {
         reviewCount: reviewCount ?? this.reviewCount,
         lapseCount: lapseCount ?? this.lapseCount,
         lastGrade: lastGrade ?? this.lastGrade,
+        stage: stage ?? this.stage,
       );
 }
 
