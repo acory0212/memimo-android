@@ -347,20 +347,20 @@ class UpdateService {
             ),
           TextButton(
             onPressed: () async {
-              // 镜像下载：国内 GitHub 直连不稳时的备选
-              final mirror = info.mirrorUrl;
+              // GitHub 原始链接（部分网络环境更快）
               Navigator.pop(context);
-              final uri = Uri.parse(mirror);
+              final uri = Uri.parse(info.downloadUrl);
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
-            child: const Text('镜像下载'),
+            child: const Text('原链接'),
           ),
           FilledButton(
             onPressed: () async {
+              // 默认走镜像：国内 GitHub 直连经常失败
               Navigator.pop(context);
-              final uri = Uri.parse(info.downloadUrl);
+              final uri = Uri.parse(info.mirrorUrl);
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
