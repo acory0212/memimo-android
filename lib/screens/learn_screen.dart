@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/word.dart';
 import '../services/audio_player.dart';
@@ -52,9 +53,13 @@ class _LearnScreenState extends State<LearnScreen> {
 
   Word get _current => _queue[_idx];
 
-  void _reveal() => setState(() => _revealed = true);
+  void _reveal() {
+    HapticFeedback.selectionClick();
+    setState(() => _revealed = true);
+  }
 
   void _grade(int g) {
+    HapticFeedback.lightImpact();
     Store.I.applyReview(_current, g);
     if (g == 0) {
       _wrong++;
@@ -128,11 +133,16 @@ class _LearnScreenState extends State<LearnScreen> {
       body: Column(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+            // 整片区域都能点：不用精确瞄准「显示答案」按钮，
+            // 单手拇指随便点一下就翻开，减少误触和抬手
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _revealed ? null : _reveal,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -239,6 +249,7 @@ class _LearnScreenState extends State<LearnScreen> {
                   ] else
                     _MeaningBlock(word: w),
                 ],
+              ),
               ),
             ),
           ),
@@ -583,44 +594,30 @@ class _ActionBar extends StatelessWidget {
                   Row(
                     children: [
                       _GradeButton(
-                        label: '忘记',
+                        label: '不认识',
                         hint: Store.I.predictLabel(progress, 0),
                         color: const Color(0xFFD84315),
                         onTap: () => onGrade(0),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       _GradeButton(
-                        label: '模糊',
-                        hint: Store.I.predictLabel(progress, 1),
-                        color: const Color(0xFFEF6C00),
-                        onTap: () => onGrade(1),
-                      ),
-                      const SizedBox(width: 8),
-                      _GradeButton(
-                        label: '一般',
+                        label: '认识',
                         hint: Store.I.predictLabel(progress, 2),
                         color: const Color(0xFF7CB342),
                         onTap: () => onGrade(2),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       _GradeButton(
                         label: '熟悉',
-                        hint: Store.I.predictLabel(progress, 3),
-                        color: const Color(0xFF2E7D32),
-                        onTap: () => onGrade(3),
-                      ),
-                      const SizedBox(width: 8),
-                      _GradeButton(
-                        label: '秒杀',
                         hint: Store.I.predictLabel(progress, 4),
-                        color: const Color(0xFF1565C0),
+                        color: const Color(0xFF2E7D32),
                         onTap: () => onGrade(4),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
-                    '${Store.I.memoryMethodName} · 按记忆程度选择，自动安排下次复习',
+                    '${Store.I.memoryMethodName} · 选完自动安排下次复习',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
                 ],
@@ -630,11 +627,12 @@ class _ActionBar extends StatelessWidget {
                 child: FilledButton(
                   onPressed: onReveal,
                   style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 20),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text('显示答案', style: TextStyle(fontSize: 16)),
+                  child: const Text('显示答案',
+                      style: TextStyle(fontSize: 17)),
                 ),
               ),
       ),
@@ -660,23 +658,26 @@ class _GradeButton extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.25)),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
           ),
           child: Column(
             children: [
               Text(label,
                   style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: color)),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(hint,
-                  style: TextStyle(fontSize: 10.5, color: color.withValues(alpha: 0.8))),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: color.withValues(alpha: 0.85))),
             ],
           ),
         ),
